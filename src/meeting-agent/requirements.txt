@@ -1,0 +1,12 @@
+langchain-azure-ai[hosting,tools]>=1.2.4
+langchain>=1.0
+langchain-openai>=1.0
+langchain-mcp-adapters>=0.2
+langgraph>=1.0
+azure-storage-blob>=12.25
+pydantic>=2.10
+httpx>=0.28
+opentelemetry-api>=1.30
+python-dotenv>=1.0
+debugpy>=1.8
+agent-dev-cli>=0.0.1b260427

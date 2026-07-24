@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Meeting Agent with Inspector",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {"host": "localhost", "port": 5679},
+      "preLaunchTask": "Open Meeting Agent Inspector",
+      "internalConsoleOptions": "neverOpen",
+      "postDebugTask": "Terminate Agent Tasks"
+    }
+  ]
+}

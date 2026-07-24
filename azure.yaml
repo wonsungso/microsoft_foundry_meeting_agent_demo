@@ -1,0 +1,187 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+  azd: '>=1.27.1'
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.7'
+    azure.ai.projects: '>=1.0.0-beta.3'
+name: ai-glasses-foundry-demo
+services:
+  ai-project:
+    host: azure.ai.project
+    deployments:
+      - model:
+          format: OpenAI
+          name: gpt-5.4-mini
+          version: "2026-03-17"
+        name: gpt-5.4-mini
+        sku:
+          capacity: 10
+          name: GlobalStandard
+  context-agent:
+    project: ./src/meeting-agent
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: context_main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    description: Context Agent that recognizes the meeting room and returns calendar context.
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+    kind: hosted
+    name: context-agent
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  triage-agent:
+    project: ./src/meeting-agent
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    description: Triage Agent that preserves the AI Glasses meeting contract and coordinates four specialist Foundry Hosted Agents through Responses 2.0.
+    environmentVariables:
+      - name: MAIL_RECIPIENT
+        value: ${MAIL_RECIPIENT}
+      - name: CONTEXT_AGENT_NAME
+        value: context-agent
+      - name: MEETING_AGENT_NAME
+        value: meeting-agent
+      - name: SUMMARIZER_AGENT_NAME
+        value: summarizer-agent
+      - name: NOTIFY_AGENT_NAME
+        value: notify-agent
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+    kind: hosted
+    metadata:
+      tags:
+        - LangChain
+        - LangGraph
+        - AI Agent Hosting
+        - Azure AI AgentServer
+        - Responses Protocol
+        - Foundry Toolbox
+        - Streaming
+    name: triage-agent
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  meeting-agent:
+    project: ./src/meeting-agent
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: meeting_notes_main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    description: Meeting Notes Agent that creates detailed Korean minutes and stores Markdown in Blob Storage.
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: AZURE_STORAGE_ACCOUNT_URL
+        value: ${AZURE_STORAGE_ACCOUNT_URL}
+      - name: MEETING_MINUTES_CONTAINER
+        value: meeting-minutes
+      - name: STORAGE_MODE
+        value: ${STORAGE_MODE}
+      - name: LOCAL_ARTIFACTS_DIR
+        value: /tmp/meeting-agent-artifacts
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+    kind: hosted
+    name: meeting-agent
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  notify-agent:
+    project: ./src/meeting-agent
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: notify_main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    description: Notify Agent that sends the meeting summary through the Work IQ Outlook Mail MCP tool.
+    environmentVariables:
+      - name: TOOLBOX_NAME
+        value: ${TOOLBOX_NAME}
+      - name: MAIL_RECIPIENT
+        value: ${MAIL_RECIPIENT}
+      - name: MAIL_MODE
+        value: ${MAIL_MODE}
+      - name: LOCAL_ARTIFACTS_DIR
+        value: /tmp/meeting-agent-artifacts
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+    kind: hosted
+    name: notify-agent
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+  summarizer-agent:
+    project: ./src/meeting-agent
+    host: azure.ai.agent
+    language: python
+    uses:
+      - ai-project
+    codeConfiguration:
+      dependencyResolution: remote_build
+      entryPoint: summarizer_main.py
+      runtime: python_3_13
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    description: Summarizer Agent that produces a concise Korean executive meeting summary.
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+    kind: hosted
+    name: summarizer-agent
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+infra:
+  provider: microsoft.foundry
+hooks:
+  postdown:
+    shell: pwsh
+    run: ./scripts/prepare-foundry-reprovision.ps1
+    interactive: true
+  predeploy:
+    shell: pwsh
+    run: ./scripts/deploy-and-e2e.ps1
+    interactive: true

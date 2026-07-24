@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Validate Agent Debug Ports",
+      "type": "aitk",
+      "command": "debug-check-prerequisites",
+      "args": {
+        "portOccupancy": [5679, 8088]
+      }
+    },
+    {
+      "label": "Run Meeting Agent Debug Server",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/run-local-debug.ps1"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHON_EXECUTABLE": "${command:python.interpreterPath}"
+        }
+      },
+      "isBackground": true,
+      "dependsOn": ["Validate Agent Debug Ports"],
+      "problemMatcher": {
+        "pattern": [{"regexp": ".*"}],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Running on|Application startup complete|Started server process"
+        }
+      }
+    },
+    {
+      "label": "Open Meeting Agent Inspector",
+      "type": "shell",
+      "command": "echo '${input:openAgentInspector}'",
+      "presentation": {"reveal": "never"},
+      "dependsOn": ["Run Meeting Agent Debug Server"]
+    },
+    {
+      "label": "Terminate Agent Tasks",
+      "type": "shell",
+      "command": "echo ${input:terminate}",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "openAgentInspector",
+      "type": "command",
+      "command": "ai-mlstudio.openTestTool",
+      "args": {"triggeredFrom": "tasks", "port": 8088}
+    },
+    {
+      "id": "terminate",
+      "type": "command",
+      "command": "workbench.action.tasks.terminate",
+      "args": "terminateAll"
+    }
+  ]
+}
