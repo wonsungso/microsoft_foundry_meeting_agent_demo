@@ -258,8 +258,11 @@ union isfuzzy=true withsource=TableName AppRequests, AppDependencies, AppTraces
 [index.html](index.html)을 브라우저에서 열고 Responses endpoint와 `https://ai.azure.com/.default` scope의 사용자 access token을 입력합니다. **회의실 입장**은 `analyze_room`, **회의 종료 및 발송**은 `summarize_meeting` 계약을 호출합니다. Token은 브라우저 메모리에만 유지됩니다.
 
 ```powershell
+az account set --subscription $(azd env get-value AZURE_SUBSCRIPTION_ID)
 az account get-access-token --scope https://ai.azure.com/.default --query accessToken -o tsv
 ```
+
+403 응답이 발생하면 기존 token을 재사용하지 말고 위 명령으로 현재 AZD subscription을 선택한 뒤 token을 다시 발급합니다. `azd up`이 출력하는 SPA 링크는 배포 tenant를 포함하며, SPA는 token의 audience, tenant, 만료 시간을 호출 전에 검증합니다.
 
 ## 로컬 개발
 

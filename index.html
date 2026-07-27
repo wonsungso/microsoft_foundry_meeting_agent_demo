@@ -98,7 +98,7 @@
     .flow { padding: 16px; border-left: 3px solid var(--cp-accent); background: var(--cp-surface); }
     .flow strong { display: block; margin-bottom: 9px; }
     .flow code { display: block; color: var(--cp-text-muted); font: 12px/1.7 Consolas, "Courier New", Courier, monospace; white-space: normal; }
-    .command-hint { display: block; margin-top: 8px; color: var(--cp-text-muted); font: 12px/1.5 Consolas, "Courier New", Courier, monospace; overflow-wrap: anywhere; }
+    .command-hint { display: block; margin-top: 8px; color: var(--cp-text-muted); font: 12px/1.5 Consolas, "Courier New", Courier, monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
     .arrow { color: var(--cp-accent); font-weight: 800; }
     .result { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cp-border); }
     .result-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
@@ -124,7 +124,7 @@
         </label>
         <label class="field">Bearer access token
           <input id="token" type="password" autocomplete="off" placeholder="발급된 access token을 붙여넣으세요">
-          <code class="command-hint">az account get-access-token --scope https://ai.azure.com/.default --query accessToken --output tsv</code>
+          <code class="command-hint" id="tokenCommand">az account get-access-token --scope https://ai.azure.com/.default --query accessToken --output tsv</code>
         </label>
         <div class="actions">
           <button id="enterButton" type="button">회의실 입장</button>
@@ -163,8 +163,16 @@
     const status = document.getElementById("status");
     const result = document.getElementById("result");
     const resultMeta = document.getElementById("resultMeta");
-    const endpointFromUrl = new URLSearchParams(window.location.search).get("endpoint");
+    const tokenCommand = document.getElementById("tokenCommand");
+    const pageParameters = new URLSearchParams(window.location.search);
+    const endpointFromUrl = pageParameters.get("endpoint");
+    const expectedTenant = pageParameters.get("tenant");
+    const expectedSubscription = pageParameters.get("subscription");
     if (endpointFromUrl) endpoint.value = endpointFromUrl;
+    tokenCommand.textContent = [
+      expectedSubscription ? `az account set --subscription ${expectedSubscription}` : null,
+      `az account get-access-token${expectedTenant ? ` --tenant ${expectedTenant}` : ""} --scope https://ai.azure.com/.default --query accessToken --output tsv`
+    ].filter(Boolean).join("\n");
     const meeting = { title: "AI Glasses 엣지 런타임 운영 리뷰", attendees: 5 };
     const transcript = `AI Glasses 엣지 런타임 운영 리뷰
   일시: 2026-07-13 10:00~11:10
@@ -217,19 +225,69 @@
       return null;
     }
 
+    function tokenClaims(accessToken) {
+      const parts = accessToken.split(".");
+      if (parts.length !== 3) throw new Error("Access token이 올바른 JWT 형식이 아닙니다.");
+      const encoded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+      try {
+        return JSON.parse(atob(padded));
+      } catch {
+        throw new Error("Access token claim을 해석할 수 없습니다. Token을 다시 발급하세요.");
+      }
+    }
+
+    function validateAccessToken(accessToken) {
+      const claims = tokenClaims(accessToken);
+      const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+      if (!audiences.includes("https://ai.azure.com")) {
+        throw new Error(`Token audience가 잘못되었습니다: ${claims.aud || "없음"}`);
+      }
+      if (expectedTenant && claims.tid !== expectedTenant) {
+        throw new Error(`Token tenant가 배포 tenant와 다릅니다: ${claims.tid || "없음"}`);
+      }
+      if (!claims.exp || claims.exp <= Math.floor(Date.now() / 1000) + 30) {
+        throw new Error("Access token이 만료되었습니다. Token을 다시 발급하세요.");
+      }
+    }
+
+    function responseRequestId(response, body) {
+      return body.error?.additionalInfo?.request_id
+        || response.headers.get("apim-request-id")
+        || response.headers.get("x-ms-request-id")
+        || response.headers.get("x-request-id");
+    }
+
     async function invoke(payload) {
       const target = endpoint.value.trim();
       const accessToken = token.value.trim();
       if (!target) throw new Error("Responses endpoint를 입력하세요.");
       if (!accessToken) throw new Error("Bearer access token을 입력하세요.");
+      validateAccessToken(accessToken);
       const started = performance.now();
       const response = await fetch(target, {
         method: "POST",
         headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(payload) }] }] })
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error?.message || `${response.status} ${response.statusText}`);
+      const responseText = await response.text();
+      let body = {};
+      try {
+        body = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        body = { raw: responseText };
+      }
+      if (!response.ok) {
+        const apiError = body.error;
+        const error = new Error(
+          (typeof apiError === "object" ? apiError?.message : apiError)
+            || `${response.status} ${response.statusText}`
+        );
+        error.status = response.status;
+        error.code = typeof apiError === "object" ? apiError?.code : undefined;
+        error.requestId = responseRequestId(response, body);
+        throw error;
+      }
       const text = outputText(body);
       const parsed = text ? JSON.parse(text) : body;
       const responseId = body.id || response.headers.get("x-ms-request-id");
@@ -247,8 +305,14 @@
       try {
         await invoke(payload);
       } catch (error) {
-        result.textContent = JSON.stringify({ error: error.message }, null, 2);
-        resultMeta.textContent = "호출 실패";
+        const details = { error: error.message };
+        if (error.status) details.status = error.status;
+        if (error.code) details.code = error.code;
+        if (error.requestId) details.request_id = error.requestId;
+        result.textContent = JSON.stringify(details, null, 2);
+        resultMeta.textContent = error.status
+          ? `HTTP ${error.status}${error.requestId ? ` · Request ID ${error.requestId}` : ""}`
+          : "호출 전 검증 실패";
         status.className = "status error";
         status.textContent = "오류";
       } finally {
