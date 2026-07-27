@@ -124,7 +124,8 @@
         </label>
         <label class="field">Bearer access token
           <input id="token" type="password" autocomplete="off" placeholder="발급된 access token을 붙여넣으세요">
-          <code class="command-hint" id="tokenCommand">az account get-access-token --scope https://ai.azure.com/.default --query accessToken --output tsv</code>
+          <code class="command-hint">az account set --subscription $(azd env get-value AZURE_SUBSCRIPTION_ID)
+az account get-access-token --tenant $(azd env get-value AZURE_TENANT_ID) --scope https://ai.azure.com/.default --query accessToken --output tsv</code>
         </label>
         <div class="actions">
           <button id="enterButton" type="button">회의실 입장</button>
@@ -163,16 +164,9 @@
     const status = document.getElementById("status");
     const result = document.getElementById("result");
     const resultMeta = document.getElementById("resultMeta");
-    const tokenCommand = document.getElementById("tokenCommand");
     const pageParameters = new URLSearchParams(window.location.search);
     const endpointFromUrl = pageParameters.get("endpoint");
-    const expectedTenant = pageParameters.get("tenant");
-    const expectedSubscription = pageParameters.get("subscription");
     if (endpointFromUrl) endpoint.value = endpointFromUrl;
-    tokenCommand.textContent = [
-      expectedSubscription ? `az account set --subscription ${expectedSubscription}` : null,
-      `az account get-access-token${expectedTenant ? ` --tenant ${expectedTenant}` : ""} --scope https://ai.azure.com/.default --query accessToken --output tsv`
-    ].filter(Boolean).join("\n");
     const meeting = { title: "AI Glasses 엣지 런타임 운영 리뷰", attendees: 5 };
     const transcript = `AI Glasses 엣지 런타임 운영 리뷰
   일시: 2026-07-13 10:00~11:10
@@ -242,9 +236,6 @@
       const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
       if (!audiences.includes("https://ai.azure.com")) {
         throw new Error(`Token audience가 잘못되었습니다: ${claims.aud || "없음"}`);
-      }
-      if (expectedTenant && claims.tid !== expectedTenant) {
-        throw new Error(`Token tenant가 배포 tenant와 다릅니다: ${claims.tid || "없음"}`);
       }
       if (!claims.exp || claims.exp <= Math.floor(Date.now() / 1000) + 30) {
         throw new Error("Access token이 만료되었습니다. Token을 다시 발급하세요.");

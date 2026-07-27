@@ -262,7 +262,7 @@ az account set --subscription $(azd env get-value AZURE_SUBSCRIPTION_ID)
 az account get-access-token --scope https://ai.azure.com/.default --query accessToken -o tsv
 ```
 
-403 응답이 발생하면 기존 token을 재사용하지 말고 위 명령으로 현재 AZD subscription을 선택한 뒤 token을 다시 발급합니다. `azd up`이 출력하는 SPA 링크는 배포 tenant를 포함하며, SPA는 token의 audience, tenant, 만료 시간을 호출 전에 검증합니다.
+403 응답이 발생하면 기존 token을 재사용하지 말고 위 명령으로 현재 AZD subscription과 tenant를 조회해 token을 다시 발급합니다. SPA 링크에는 subscription 및 tenant ID를 포함하지 않으며, SPA는 token의 audience와 만료 시간을 호출 전에 검증합니다.
 
 ## 로컬 개발
 
