@@ -54,4 +54,21 @@ azd up
 - 사용자에게 Microsoft 365 Copilot 라이선스가 있는지
 - Responses protocol이 `2.0.0`인지
 
+### Conditional Access token 갱신
+
+`TokenCreatedWithOutdatedPolicies` 또는 `Continuous access evaluation ... InteractionRequired`가 표시되면 Microsoft Graph Conditional Access 정책이 Azure CLI의 cached token 발급 이후 변경된 상태입니다. 현재 사용자 cache만 제거하고 Graph scope로 다시 로그인한 뒤 배포를 재실행합니다.
+
+```powershell
+$user = az account show --query user.name --output tsv
+$tenant = azd env get-value AZURE_TENANT_ID
+$subscription = azd env get-value AZURE_SUBSCRIPTION_ID
+
+az logout --username $user
+az login --tenant $tenant --scope https://graph.microsoft.com/.default
+az account set --subscription $subscription
+azd up
+```
+
+배포 hook은 Agent 배포 전에 Graph token을 검사하므로, 재인증이 필요하면 다섯 Agent를 배포하기 전에 위 명령을 안내하고 중단합니다.
+
 참고: Work IQ와 Outlook Mail 도구는 preview이며 VNet-restricted Foundry 프로젝트를 지원하지 않습니다.

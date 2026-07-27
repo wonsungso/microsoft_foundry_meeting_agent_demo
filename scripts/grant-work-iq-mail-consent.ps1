@@ -1,6 +1,7 @@
 param(
     [string]$UserObjectId,
-    [string]$AgentName = 'notify-agent'
+    [string]$AgentName = 'notify-agent',
+    [switch]$PreflightOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,34 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $agentToolsAppId = 'ea9ffc3e-8a23-4a7d-836d-234d7c7565c1'
 $mailScope = 'McpServers.Mail.All'
+
+function Get-AgentToolsServicePrincipal {
+    $servicePrincipalQuery = @"
+{
+    id: id,
+    appId: appId,
+    oauth2PermissionScopes: oauth2PermissionScopes[].{id: id, value: value}
+}
+"@ -replace "`r?`n", ''
+    $output = az ad sp show `
+        --id $agentToolsAppId `
+        --query $servicePrincipalQuery `
+        --output json 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0 -and $output) {
+        return $output | ConvertFrom-Json
+    }
+    if ($output -match 'TokenCreatedWithOutdatedPolicies|Continuous access evaluation') {
+        $account = az account show --output json | ConvertFrom-Json
+        throw @"
+Microsoft Graph requires fresh interactive authentication because Conditional Access policies changed.
+Run the following commands, then run 'azd up' again:
+  az logout --username $($account.user.name)
+  az login --tenant $($account.tenantId) --scope https://graph.microsoft.com/.default
+  az account set --subscription $($account.id)
+"@
+    }
+    return $null
+}
 
 function Invoke-GraphWrite(
     [string]$Method,
@@ -60,6 +89,12 @@ function Get-SignedInPrincipalId {
     return [string]$claims.oid
 }
 
+$agentToolsServicePrincipal = Get-AgentToolsServicePrincipal
+if ($PreflightOnly) {
+    Write-Host 'Microsoft Graph authentication is ready for Work IQ Mail consent.'
+    return
+}
+
 if (-not $UserObjectId) {
     $UserObjectId = Get-SignedInPrincipalId
 }
@@ -82,11 +117,7 @@ $servicePrincipalQuery = @"
     oauth2PermissionScopes: oauth2PermissionScopes[].{id: id, value: value}
 }
 "@ -replace "`r?`n", ''
-$agentToolsServicePrincipal = az ad sp show `
-        --id $agentToolsAppId `
-        --query $servicePrincipalQuery `
-        --output json 2>$null | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or -not $agentToolsServicePrincipal) {
+if (-not $agentToolsServicePrincipal) {
         $agentToolsServicePrincipal = az ad sp create `
                 --id $agentToolsAppId `
                 --query $servicePrincipalQuery `

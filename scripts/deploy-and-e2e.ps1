@@ -22,6 +22,9 @@ Import-AzdEnvironment
 & "$PSScriptRoot/provision-observability.ps1"
 & "$PSScriptRoot/ensure-work-iq-toolbox.ps1"
 Import-AzdEnvironment
+if ($env:MAIL_MODE -eq 'live') {
+    & "$PSScriptRoot/grant-work-iq-mail-consent.ps1" -PreflightOnly
+}
 & "$PSScriptRoot/show-spa.ps1"
 
 Write-Host ''
