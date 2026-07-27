@@ -181,6 +181,10 @@ hooks:
     shell: pwsh
     run: ./scripts/prepare-foundry-reprovision.ps1
     interactive: true
+  postup:
+    shell: pwsh
+    run: ./scripts/show-spa.ps1
+    interactive: true
   predeploy:
     shell: pwsh
     run: ./scripts/deploy-and-e2e.ps1

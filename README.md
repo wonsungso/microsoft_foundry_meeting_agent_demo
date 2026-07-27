@@ -166,7 +166,7 @@ azd auth login --check-status
 azd up
 ```
 
-`azd up` 출력에는 현재 Triage endpoint가 자동 입력된 SPA의 로컬 `file:///.../index.html?endpoint=...` 경로와 `Deployment E2E test passed.`가 표시됩니다. 이 경로를 브라우저에서 열고 access token만 입력하면 두 버튼을 테스트할 수 있습니다.
+`azd up`의 마지막 `postup` 단계에는 현재 Triage endpoint가 자동 입력된 SPA의 로컬 `file:///.../index.html?endpoint=...` 링크와 `Deployment E2E test passed.`가 표시됩니다. VS Code terminal에서 SPA 링크를 클릭해 브라우저로 열고 access token만 입력하면 두 버튼을 테스트할 수 있습니다.
 
 `azd down --purge --force` 후에는 `postdown` hook이 다음 배포의 resource group 이름에 짧은 suffix를 추가합니다. Foundry account 이름은 resource group ID를 포함해 계산되므로, 삭제된 account의 data-plane tombstone을 재사용해 발생하는 `409 Conflict`를 피할 수 있습니다.
 

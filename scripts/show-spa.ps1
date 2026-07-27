@@ -25,8 +25,8 @@ $messages = @(
     '',
     'AI Glasses SPA client',
     "  File: $spaPath",
-    "  Open: $spaUri",
-    ''
+    '  Click the link below to open it in your browser:',
+    $spaUri
 )
 foreach ($message in $messages) {
     if ([Console]::IsOutputRedirected) {
