@@ -23,7 +23,14 @@
       "isBackground": true,
       "dependsOn": ["Validate Agent Debug Ports"],
       "problemMatcher": {
-        "pattern": [{"regexp": ".*"}],
+        "pattern": [
+          {
+            "regexp": "^(?!)((.*)):(\\d+):(.*)$",
+            "file": 1,
+            "line": 3,
+            "message": 4
+          }
+        ],
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
