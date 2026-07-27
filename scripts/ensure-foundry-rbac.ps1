@@ -1,7 +1,27 @@
 $ErrorActionPreference = 'Stop'
 
-if (-not $env:AZURE_AI_PROJECT_ID -or -not $env:AZURE_SUBSCRIPTION_ID) {
-    throw 'AZURE_AI_PROJECT_ID and AZURE_SUBSCRIPTION_ID are required.'
+if (
+    -not $env:AZURE_AI_PROJECT_ID -or
+    -not $env:AZURE_SUBSCRIPTION_ID -or
+    -not $env:AZURE_TENANT_ID
+) {
+    throw 'AZURE_AI_PROJECT_ID, AZURE_SUBSCRIPTION_ID, and AZURE_TENANT_ID are required.'
+}
+
+$azureContext = az account show --output json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or -not $azureContext) {
+    throw 'Could not load the current Azure CLI account context.'
+}
+if (
+    $azureContext.id -ne $env:AZURE_SUBSCRIPTION_ID -or
+    $azureContext.tenantId -ne $env:AZURE_TENANT_ID
+) {
+    throw @"
+Azure CLI context does not match the active azd environment.
+Azure CLI: subscription $($azureContext.id), tenant $($azureContext.tenantId), user $($azureContext.user.name)
+azd environment: subscription $($env:AZURE_SUBSCRIPTION_ID), tenant $($env:AZURE_TENANT_ID)
+Run 'az account set --subscription $($env:AZURE_SUBSCRIPTION_ID)'. If that subscription is unavailable, run 'az login --tenant $($env:AZURE_TENANT_ID)' first.
+"@
 }
 
 function New-DeterministicGuid([string]$Value) {
@@ -55,7 +75,10 @@ function Set-RoleAssignment(
             --body "@$bodyFile" `
             --output none 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0 -and $response -notmatch 'RoleAssignmentExists') {
-            throw "Failed to assign role $RoleDefinitionId to principal $PrincipalId."
+            throw (
+                "Failed to assign role $RoleDefinitionId to principal $PrincipalId. " +
+                "Azure response: $($response.Trim())"
+            )
         }
     }
     finally {
